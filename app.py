@@ -1,45 +1,26 @@
-from flask import Flask, request, render_template_string
-import pandas as pd
-import matplotlib.pyplot as plt
-import io
-import base64
+import streamlit as st
+from modules.data_loader import load_data
+from modules.data_cleaner import clean_data
+from modules.analysis_engine import analyze_data
+from modules.report_generator import generate_report
 
-app = Flask(__name__)
+st.title("🔎 Trade Remedies – Import Analysis Tool")
+st.write("تطبيق لتحليل الواردات لدعم تحقيقات المعالجات التجارية")
 
-HTML = """
-<h2>Trade Remedies – Import Analysis Tool</h2>
-<form method="POST" enctype="multipart/form-data">
-  <p>Upload CSV file:</p>
-  <input type="file" name="file">
-  <input type="submit" value="Analyze">
-</form>
+uploaded_file = st.file_uploader("ارفع ملف الواردات (CSV)", type="csv")
 
-{% if table %}
-<h3>Data Preview</h3>
-{{ table|safe }}
+if uploaded_file:
+    df = load_data(uploaded_file)
+    st.subheader("📌 البيانات الأصلية")
+    st.dataframe(df)
 
-<h3>Import Trend Chart</h3>
-<img src="data:image/png;base64,{{ chart }}">
-{% endif %}
-"""
+    df_clean = clean_data(df)
+    st.subheader("📌 البيانات بعد التنظيف")
+    st.dataframe(df_clean)
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        file = request.files['file']
-        df = pd.read_csv(file)
+    results = analyze_data(df_clean)
+    st.subheader("📌 نتائج التحليل")
+    st.write(results)
 
-        # Generate chart
-        plt.figure()
-        df.iloc[:,1].plot()
-        buf = io.BytesIO()
-        plt.savefig(buf, format="png")
-        buf.seek(0)
-        chart = base64.b64encode(buf.getvalue()).decode()
-
-        return render_template_string(HTML, table=df.head().to_html(), chart=chart)
-
-    return render_template_string(HTML, table=None, chart=None)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    report = generate_report(results)
+    st.download_button("📥 Download Report", report, file_name="analysis_report.txt")
